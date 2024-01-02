@@ -8,7 +8,7 @@ window.addEventListener("load", () => {
   ctx.fillStyle = "white";
   ctx.strokeStyle = "black";
   ctx.lineWidth = 3;
-  ctx.font = "40px Helvetica";
+  ctx.font = "40px Bangers";
   ctx.textAlign = "center";
 
   class Player {
@@ -31,6 +31,13 @@ window.addEventListener("load", () => {
       this.frameX = 0;
       this.frameY = 0;
       this.image = document.getElementById("bull");
+    }
+
+    restart() {
+      this.collisionX = this.game.width * 0.5;
+      this.collisionY = this.game.height * 0.5;
+      this.spriteX = this.collisionX - this.width * 0.5;
+      this.spriteY = this.collisionY - this.height * 0.5 - 100;
     }
 
     draw(context) {
@@ -235,7 +242,10 @@ window.addEventListener("load", () => {
         }
       });
 
-      if (this.hatchTimer > this.hatchInterval) {
+      if (
+        this.hatchTimer > this.hatchInterval ||
+        this.collisionY < this.game.topMargin
+      ) {
         this.game.hatchlings.push(
           new Larva(this.game, this.collisionX, this.collisionY)
         );
@@ -295,12 +305,12 @@ window.addEventListener("load", () => {
     update() {
       this.collisionY -= this.speedY;
       this.spriteX = this.collisionX - this.width * 0.5;
-      this.spriteY = this.collisionY - this.height * 0.5 - 50;
+      this.spriteY = this.collisionY - this.height * 0.5 - 40;
 
       if (this.collisionY < this.game.topMargin) {
         this.markedForDeletion = true;
         this.game.removeGameObjects();
-        this.game.score++;
+        if (!this.game.gameOver) this.game.score++;
         for (let i = 0; i < 3; i++) {
           this.game.particles.push(
             new Firefly(game, this.collisionX, this.collisionY, "yellow")
@@ -308,7 +318,11 @@ window.addEventListener("load", () => {
         }
       }
 
-      let collisionObjects = [this.game.player, ...this.game.obstacles];
+      let collisionObjects = [
+        this.game.player,
+        ...this.game.obstacles,
+        ...this.game.eggs,
+      ];
       collisionObjects.forEach((object) => {
         let [collision, distance, sumOfRadii, dx, dy] =
           this.game.checkCollision(this, object);
@@ -322,7 +336,7 @@ window.addEventListener("load", () => {
       });
 
       this.game.enemies.forEach((enemy) => {
-        if (this.game.checkCollision(this, enemy)[0]) {
+        if (this.game.checkCollision(this, enemy)[0] && !this.game.gameOver) {
           this.markedForDeletion = true;
           this.game.removeGameObjects();
           this.game.lostHatchlings++;
@@ -341,7 +355,7 @@ window.addEventListener("load", () => {
       this.game = game;
       this.collisionRadius = 30;
       this.speedX = Math.random() * 3 + 0.5;
-      this.image = document.getElementById("toad");
+      this.image = document.getElementById("toads");
       this.spriteWidth = 140;
       this.spriteHeight = 260;
       this.width = this.spriteWidth;
@@ -353,10 +367,22 @@ window.addEventListener("load", () => {
         Math.random() * (this.game.height - this.game.topMargin);
       this.spriteX;
       this.spriteY;
+      this.frameX = 0;
+      this.frameY = Math.floor(Math.random() * 4);
     }
 
     draw(context) {
-      context.drawImage(this.image, this.spriteX, this.spriteY);
+      context.drawImage(
+        this.image,
+        this.spriteWidth * this.frameX,
+        this.spriteHeight * this.frameY,
+        this.spriteWidth,
+        this.spriteHeight,
+        this.spriteX,
+        this.spriteY,
+        this.width,
+        this.height
+      );
 
       if (this.game.debug) {
         context.beginPath();
@@ -380,12 +406,13 @@ window.addEventListener("load", () => {
       this.spriteY = this.collisionY - this.height + 40;
       this.collisionX -= this.speedX;
 
-      if (this.spriteX + this.width < 0) {
+      if (this.spriteX + this.width < 0 && !this.game.gameOver) {
         this.collisionX =
           this.game.width + this.width + Math.random() * this.game.width * 0.5;
         this.collisionY =
           this.game.topMargin +
           Math.random() * (this.game.height - this.game.topMargin);
+        this.frameY = Math.floor(Math.random() * 4);
       }
 
       let collisionObjects = [this.game.player, ...this.game.obstacles];
@@ -451,10 +478,10 @@ window.addEventListener("load", () => {
       this.angle += this.va * 0.5;
       this.collisionX -= Math.cos(this.angle) * this.speedX;
       this.collisionY -= Math.sin(this.angle) * this.speedY;
-      if(this.radius > 0.1) this.radius -= 0.05
-      if(this.radius < 0.2) {
-        this.markedForDeletion = true
-        this.game.removeGameObjects()
+      if (this.radius > 0.1) this.radius -= 0.05;
+      if (this.radius < 0.2) {
+        this.markedForDeletion = true;
+        this.game.removeGameObjects();
       }
     }
   }
@@ -466,6 +493,7 @@ window.addEventListener("load", () => {
       this.height = canvas.height;
       this.topMargin = 260;
       this.debug = false;
+      this.gameOver = false;
       this.player = new Player(this);
       this.fps = 70;
       this.timer = 0;
@@ -474,6 +502,7 @@ window.addEventListener("load", () => {
       this.eggInterval = 1000;
       this.numberOfObstacles = 10;
       this.maxEggs = 5;
+      this.maxEnemies = 5;
       this.obstacles = [];
       this.eggs = [];
       this.enemies = [];
@@ -481,6 +510,7 @@ window.addEventListener("load", () => {
       this.gameObjects = [];
       this.particles = [];
       this.score = 0;
+      this.winningScore = 10;
       this.lostHatchlings = 0;
       this.mouse = {
         x: this.width * 0.5,
@@ -506,6 +536,7 @@ window.addEventListener("load", () => {
       });
       window.addEventListener("keydown", (event) => {
         if (event.key === "d") this.debug = !this.debug;
+        if (event.key === "r") this.restart();
       });
     }
 
@@ -532,7 +563,11 @@ window.addEventListener("load", () => {
       }
       this.timer += deltaTime;
 
-      if (this.eggTimer > this.eggInterval && this.eggs.length < this.maxEggs) {
+      if (
+        this.eggTimer > this.eggInterval &&
+        this.eggs.length < this.maxEggs &&
+        !this.gameOver
+      ) {
         this.addEgg();
         this.eggTimer = 0;
       } else this.eggTimer += deltaTime;
@@ -540,8 +575,43 @@ window.addEventListener("load", () => {
       context.save();
       context.textAlign = "left";
       context.fillText("Score: " + this.score, 25, 50);
+
       if (this.debug) context.fillText("Lost: " + this.lostHatchlings, 25, 100);
       context.restore();
+
+      if (this.score >= this.winningScore) {
+        this.gameOver = true;
+
+        context.save();
+        context.fillStyle = "rgba(0, 0, 0, 0.5)";
+        context.fillRect(0, 0, this.width, this.height);
+        context.fillStyle = "white";
+        context.textAlign = "center";
+        context.shadowOffsetX = 4;
+        context.shadowOffsetY = 4;
+        context.shadowColor = "black";
+
+        let message1;
+        let message2;
+        if (this.lostHatchlings <= 5) {
+          message1 = "Saved!";
+          message2 = "You saved the eggs successfully.";
+        } else {
+          message1 = "Eaten!";
+          message2 = "You lost " + this.lostHatchlings + " hatchlings";
+        }
+
+        context.font = "130px Bangers";
+        context.fillText(message1, this.width * 0.5, this.height * 0.5 - 20);
+        context.font = "40px Bangers";
+        context.fillText(message2, this.width * 0.5, this.height * 0.5 + 30);
+        context.fillText(
+          "Final score " + this.score + ". Press 'R' to play again!",
+          this.width * 0.5,
+          this.height * 0.5 + 80
+        );
+        context.restore();
+      }
     }
 
     checkCollision(a, b) {
@@ -573,8 +643,28 @@ window.addEventListener("load", () => {
       );
     }
 
+    restart() {
+      this.player.restart();
+      this.obstacles = [];
+      this.eggs = [];
+      this.enemies = [];
+      this.hatchlings = [];
+      this.gameObjects = [];
+      this.particles = [];
+      this.mouse = {
+        x: this.width * 0.5,
+        y: this.height * 0.5,
+        pressed: false,
+      };
+      this.score = 0;
+      this.lostHatchlings = 0;
+      this.gameOver = false;
+      this.debug = false;
+      this.init();
+    }
+
     init() {
-      for (let i = 0; i < 3; i++) {
+      for (let i = 0; i < this.maxEnemies; i++) {
         this.addEnemy();
       }
       let attempts = 0;
@@ -618,6 +708,7 @@ window.addEventListener("load", () => {
     lastTime = timeStamp;
 
     game.render(ctx, deltaTime);
+    // if (!game.gameOver)
     requestAnimationFrame(animate);
   };
   animate(0);
